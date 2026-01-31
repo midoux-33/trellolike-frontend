@@ -110,7 +110,7 @@ export default function Login() {
         <input 
         type="password"
         name="password"
-        value={formData.email}
+        value={formData.password}
         onChange={handleInputChange}
         placeholder="Mot de passe" />
         <a href="#">Mot de passe oublié ?</a>
