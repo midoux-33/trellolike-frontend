@@ -132,7 +132,7 @@ export default function Login() {
         <input 
         type="text" 
         name="username"
-        value={formData.usernname}
+        value={formData.username}
         onChange={handleInputChange}
         placeholder="Pseudo" />
         <input 
