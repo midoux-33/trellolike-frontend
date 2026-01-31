@@ -9,7 +9,8 @@ export default function Login() {
   const router = useRouter()
 
   const [isSignUp, setIsSignUp] = useState(false);
-  const [error, setError] = useState('');
+  const [errorLogin, setErrorLogin] = useState('');
+  const [errorSignup, setErrorSignup] = useState('');
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -25,6 +26,23 @@ export default function Login() {
     return null;
   }
 
+  const handleTabSwitch = (toSignup) => {
+    setIsSignUp(toSignup)
+    
+    // gestion timeur pour ui 
+    setTimeout(() => {
+
+        setFormData({
+            username: '',
+            email: '',
+            password: '',
+            confirmPassword: '',
+            firstName: '',
+            lastName: '', 
+        });
+    }, 100);
+  };
+
   const handleInputChange = (e) => {
     // clé dynamique
     setFormData({
@@ -34,9 +52,16 @@ export default function Login() {
   };
 
   const handleSubmit = async (e) => {
+    console.log("start")
     e.preventDefault();
+    console.log("prev ok")
     setLoading(true);
-    setError('');
+    
+    if (isSignUp) {
+        setErrorSignup('')
+    } else {
+        setErrorLogin('')
+    }
 
     try { 
         
@@ -55,7 +80,14 @@ export default function Login() {
     }
     router.push('/dashboard')
     } catch(error) {
-        setError(error.response?.data?.message || 'Erreur connexion')
+
+        console.log("l'erreur est : ", error.response.data)
+        if(isSignUp) {
+            setErrorSignup(error.response?.data?.message || 'Erreur inscription')
+            console.log("l'erreur signup : ", error.response.data)
+        } else {
+            setErrorLogin(error.response?.data?.message || 'Erreur connexion')
+        }
     } finally {
         setLoading(false)
     }
@@ -71,7 +103,7 @@ export default function Login() {
             <p>Entrez vos informations personnelles et commencez votre voyage avec nous</p>
             <button 
               className={styles.btnPromo}
-              onClick={() => setIsSignUp(true)}
+              onClick={() => handleTabSwitch(true)}
             >
               S'INSCRIRE
             </button>
@@ -82,7 +114,7 @@ export default function Login() {
             <p>Pour rester connecté avec nous, veuillez vous connecter avec vos informations personnelles</p>
             <button 
               className={styles.btnPromo}
-              onClick={() => setIsSignUp(false)}
+              onClick={() => handleTabSwitch(false)}
             >
               SE CONNECTER
             </button>
@@ -114,8 +146,13 @@ export default function Login() {
         onChange={handleInputChange}
         placeholder="Mot de passe" />
         <a href="#">Mot de passe oublié ?</a>
-        <button className={styles.btnSignIn} type="Submit">SE CONNECTER</button>
+        <button className={styles.btnSignIn} type="submit">SE CONNECTER</button>
         </form>
+            {errorLogin && (
+                <div className={styles.errorMessage}>
+                    {errorLogin}
+                </div>
+                )}        
       </div>
 
 
@@ -161,6 +198,11 @@ export default function Login() {
         placeholder="prénom" />
         <button className={styles.btnSignUp} type="submit">S'INSCRIRE</button>
         </form>
+        {errorSignup && (
+            <div className={styles.errorMessage}>
+                {errorSignup}
+            </div>
+            )}
       </div>
     </div>
   );

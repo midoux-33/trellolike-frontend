@@ -65,3 +65,12 @@ button {
 input, textarea, select {
   font-family: inherit;
 }
+
+.errorMessage {
+  background: #fee;
+  color: #c33;
+  padding: 12px;
+  border-radius: 4px;
+  margin: 8px 0;
+  border-left: 4px solid #c33;
+}
