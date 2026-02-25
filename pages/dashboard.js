@@ -1,46 +1,82 @@
-// pages/dashboard.jsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { listsApi } from '../lib/api';
+import { listsApi, taskApi } from '../lib/api';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
+import styles from '../styles/dashboard.module.css';
+import BoardModal from '../components/BoardModal';
+import TaskCard from '../components/TaskCard';
+
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  
+
   // ÉTATS
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [showNewList, setShowNewList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
   const [newListDesc, setNewListDesc] = useState('');
+  const [showSidebar, setShowSidebar] = useState(false);
+const [selectedBoard, setSelectedBoard] = useState(null);
+const [tasksByList, setTasksByList] = useState({});
 
-  // 1. LOAD listes
+  const avatarSrc =
+    user?.Avatar ||
+    user?.defaultAvatar ||
+    'https://ui-avatars.com/api/?name=User&size=200&background=4f46ca&color=fff&rounded=true';
+
+  const colors = ['#eb5a46', '#00c2e0', '#7ac555', '#ffa533', '#f47ad5', '#5bc0eb', '#9f8fef'];
+
+  // LOAD listes
   useEffect(() => {
-    const loadLists = async () => {
+  const loadLists = async () => {
+  try {
+    setLoading(true);
+    const res = await listsApi.getAll();
+    const allLists = res.data.lists || [];
+
+    setLists(allLists);
+
+    // Charge les tâches pour chaque liste (limité à 5 pour perf)
+    const tasksObj = {};
+    for (const list of allLists.slice(0, 5)) {
       try {
-        setLoading(true);
-        const res = await listsApi.getAll();
-        setLists(res.data.lists || []);
-      } catch (error) {
-        console.error('Erreur load lists:', error);
-      } finally {
-        setLoading(false);
+        const tasksRes = await taskApi.getTasksByList(list._id);
+        tasksObj[list._id] = tasksRes.data.tasks || [];
+      } catch (err) {
+        tasksObj[list._id] = [];
       }
-    };
+    }
+    setTasksByList(tasksObj);
+  } catch (error) {
+    console.error('Erreur load lists:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
     loadLists();
   }, []);
 
-  // 2. CREATE liste
+  // CHECK auth
+  useEffect(() => {
+    if (user !== null) {
+      setAuthLoading(false);
+    }
+  }, [user]);
+
+  // CREATE liste
   const createList = async (e) => {
     e.preventDefault();
     try {
       const res = await listsApi.create({
         title: newListTitle,
-        description: newListDesc
+        description: newListDesc,
       });
-      
-      // Refresh auto
+
       setLists([res.data.list, ...lists]);
       setNewListTitle('');
       setNewListDesc('');
@@ -51,197 +87,182 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteList = async (listId) => {
+  if (!window.confirm('Supprimer définitivement cette liste ?')) return;
+
+  try {
+    await listsApi.delete(listId);
+    // on retire la liste du state
+    setLists((prev) => prev.filter((l) => l._id !== listId));
+    // on ferme la modal si elle affiche cette liste
+    setSelectedBoard((prev) => (prev && prev._id === listId ? null : prev));
+  } catch (error) {
+    console.error('Erreur suppression liste :', error);
+    alert('Erreur lors de la suppression de la liste');
+  }
+};
+
+  if (authLoading) {
+    return <div className={styles.loading}>Chargement...</div>;
+  }
+
   if (!user) {
     router.push('/login');
     return null;
   }
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* HEADER */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '2rem',
-        paddingBottom: '1rem',
-        borderBottom: '1px solid #e5e7eb'
-      }}>
-        <div>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0 }}>
-            Bonjour {user.username} !
-          </h1>
-          <p style={{ color: '#6b7280', margin: '0.5rem 0 0 0' }}>
-            {lists.length} liste(s)
-          </p>
-        </div>
-        <button 
-          onClick={logout}
-          style={{ 
-            padding: '0.75rem 1.5rem', 
-            background: '#ef4444', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px',
-            cursor: 'pointer'
-          }}
-        >
-          Déconnexion
-        </button>
+    <div className={styles.container}>
+      {/* AVATAR FLOTTANT QUI OUVRE LA SIDEBAR */}
+      <div
+        className={styles.floatingAvatar}
+        onClick={() => setShowSidebar(true)}
+      >
+        <Image
+          src={avatarSrc}
+          alt="Avatar"
+          width={48}
+          height={48}
+          className={styles.avatar}
+        />
       </div>
 
-      {/* CREATE BUTTON */}
-      <button 
-        onClick={() => setShowNewList(true)}
-        style={{ 
-          padding: '1rem 2rem', 
-          background: '#10b981', 
-          color: 'white', 
-          border: 'none', 
-          borderRadius: '8px',
-          fontSize: '1.1rem',
-          cursor: 'pointer'
-        }}
-      >
-        + Nouvelle liste
-      </button>
-
-      {/* LOADING */}
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '4rem' }}>
-          Chargement des listes...
-        </div>
-      )}
-
-      {/* LISTES */}
-      {!loading && lists.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#6b7280' }}>
-          Aucune liste. Crée la première !
-        </div>
-      )}
-
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
-        gap: '1.5rem', 
-        marginTop: '2rem' 
-      }}>
-        {lists.map((list) => (
-          <div key={list._id} style={{
-            padding: '1.5rem',
-            border: '1px solid #e5e7eb',
-            borderRadius: '12px',
-            background: 'white',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
-          }}>
-            <h3 style={{ 
-              fontSize: '1.5rem', 
-              fontWeight: 'bold', 
-              margin: '0 0 0.5rem 0',
-              color: '#111827'
-            }}>
-              {list.title}
-            </h3>
-            <p style={{ color: '#6b7280', margin: '0 0 1rem 0' }}>
-              {list.description || 'Aucune description'}
-            </p>
-            <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-              <strong>Propriétaire :</strong> {list.owner?.username || 'Inconnu'}
+      {/* SIDEBAR MODALE QUI SLIDE DEPUIS LA GAUCHE */}
+      {showSidebar && (
+        <div className={styles.sidebarModal}>
+          <div className={styles.sidebarModalContent}>
+            <div className={styles.avatarWrapper}>
+              <Image
+                src={avatarSrc}
+                alt="Avatar"
+                width={64}
+                height={64}
+                className={styles.avatar}
+              />
+              <span>{user.username || `${user.firstName} ${user.lastName}`}</span>
             </div>
-            {list.collaborators?.length > 0 && (
-              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                <strong>Collaborateurs :</strong> {list.collaborators.length}
-              </div>
-            )}
-            <button 
-              style={{
-                marginTop: '1rem',
-                padding: '0.5rem 1rem',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer'
+
+            <button
+              className={styles.newListBtn}
+              onClick={() => {
+                setShowNewList(true);
+                setShowSidebar(false);
               }}
-              onClick={() => router.push(`/list/${list._id}`)}
             >
-              Voir les tâches
+              <span>+</span> Nouvelle liste
+            </button>
+
+            <button
+              className={styles.logoutBtn}
+              onClick={logout}
+            >
+              Déconnexion
             </button>
           </div>
-        ))}
-      </div>
 
-      {/* MODAL CREATE */}
+          <button
+            className={styles.sidebarClose}
+            onClick={() => setShowSidebar(false)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* CONTENU PRINCIPAL KANBAN */}
+      <main className={styles.mainContent}>
+        {loading ? (
+          <div className={styles.loading}>Chargement des listes...</div>
+        ) : lists.length === 0 ? (
+          <div className={styles.emptyState}>
+            <h2>Aucune liste</h2>
+            <p>Crée ta première liste pour commencer !</p>
+          </div>
+        ) : (
+          <section className={styles.kanban}>
+            <div className={styles.kanbanHeader}>
+              <h1>Mes listes</h1>
+              <span className={styles.listsCount}>{lists.length}</span>
+            </div>
+
+            <div className={styles.kanbanScroll}>
+              {lists.map((list, index) => {
+                const color = colors[index % colors.length];
+
+                return (
+                  <div key={list._id} className={styles.listColumn}>
+                    {/* Bandeau coloré : clic = ouvrir description en modal */}
+<div
+  className={styles.columnHeaderBar}
+  style={{ backgroundColor: color }}
+  onClick={() => setSelectedBoard(list)}
+>
+  <span className={styles.columnTitle}>
+    {list.title.toUpperCase()}
+  </span>
+  <span className={styles.taskCount}>
+    {tasksByList[list._id]?.length || 0}
+  </span>
+</div>
+
+
+                    {/* Corps de colonne classique (tu peux le garder ou le simplifier) */}
+<div className={styles.columnBody}>
+  {tasksByList[list._id]?.length > 0 ? (
+    <>
+      {tasksByList[list._id].slice(0, 3).map((task) => (
+        <TaskCard 
+          key={task._id} 
+          task={task}
+        />
+      ))}
+      {tasksByList[list._id].length > 3 && (
+        <div className={styles.moreTasks}>
+          +{tasksByList[list._id].length - 3} autres...
+        </div>
+      )}
+    </>
+  ) : (
+    <div className={styles.noTasks}>Aucune tâche</div>
+  )}
+</div>
+
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </main>
+
+      {/* MODAL CRÉATION LISTE */}
       {showNewList && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'white',
-            padding: '2rem',
-            borderRadius: '12px',
-            minWidth: '400px',
-            maxWidth: '90vw'
-          }}>
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-              Nouvelle liste
-            </h3>
-            <form onSubmit={createList} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <h3>Nouvelle liste</h3>
+            <form onSubmit={createList}>
               <input
                 type="text"
                 placeholder="Titre de la liste"
                 value={newListTitle}
                 onChange={(e) => setNewListTitle(e.target.value)}
-                style={{
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px'
-                }}
+                className={styles.input}
                 required
               />
               <textarea
                 placeholder="Description (optionnel)"
                 value={newListDesc}
                 onChange={(e) => setNewListDesc(e.target.value)}
-                style={{
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  minHeight: '80px',
-                  resize: 'vertical'
-                }}
+                className={styles.textarea}
               />
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
-                  type="submit"
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem',
-                    background: '#10b981',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px'
-                  }}
-                >
+              <div className={styles.modalButtons}>
+                <button type="submit" className={styles.modalSubmit}>
                   Créer
                 </button>
-                <button 
+                <button
                   type="button"
+                  className={styles.modalCancel}
                   onClick={() => setShowNewList(false)}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem',
-                    background: '#6b7280',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px'
-                  }}
                 >
                   Annuler
                 </button>
@@ -250,6 +271,18 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* MODAL DESCRIPTION LISTE */}
+{selectedBoard && (
+  <BoardModal
+    board={selectedBoard}
+    onClose={() => setSelectedBoard(null)}
+    onDelete={handleDeleteList}
+  />
+)}
+
+
+
     </div>
   );
 }

@@ -1,107 +1,63 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext'
+import { useAuthForm } from '../hooks/useAuthForm';
 import { useRouter } from 'next/router'
 import styles from '../styles/login.module.css';
+
 
 
 export default function Login() {
   const { login, register, isAuthenticated } = useAuth();
   const router = useRouter()
-
   const [isSignUp, setIsSignUp] = useState(false);
-  const [errorLogin, setErrorLogin] = useState('');
-  const [errorSignup, setErrorSignup] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    username: '',
+
+  const loginForm = useAuthForm({
+    email: '',
+    password: ''
+  });
+
+    const signupForm = useAuthForm({
     email: '',
     password: '',
-    confirmPassword: '',
+    username: '',
     firstName: '',
-    lastName: '', 
-  })
+    lastName: ''
+  });
+  
 
-  if (isAuthenticated && !loading) {
+  const form = isSignUp ? signupForm : loginForm;
+
+  if (isAuthenticated && !form.loading) {
     router.push('/dashboard');
     return null;
   }
 
   const handleTabSwitch = (toSignup) => {
-    setIsSignUp(toSignup)
-    
-    // gestion timeur pour ui 
+    setIsSignUp(toSignup);
+
     setTimeout(() => {
-
-        setFormData({
-            username: '',
-            email: '',
-            password: '',
-            confirmPassword: '',
-            firstName: '',
-            lastName: '', 
-        });
-    }, 100);
+            if (toSignup) {
+      loginForm.resetForm();   
+    } else {
+      signupForm.resetForm();  
+    }
+    }, 100)
   };
 
-  const handleInputChange = (e) => {
-    // clé dynamique
-    setFormData({
-        ...formData,
-        [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    console.log("start")
-    e.preventDefault();
-    console.log("prev ok")
-    setLoading(true);
-    
-    if (isSignUp) {
-        setErrorSignup('')
-    } else {
-        setErrorLogin('')
-    }
-
-    try { 
-        
-        if (isSignUp) {
-        
-        //signup
-        await register({
-            username: formData.username,
-            email: formData.email,
-            password: formData.password,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-        })
-    } else {
-        await login(formData.email, formData.password)
-    }
-    router.push('/dashboard')
-    } catch(error) {
-
-        console.log("l'erreur est : ", error.response.data)
-        if(isSignUp) {
-            setErrorSignup(error.response?.data?.message || 'Erreur inscription')
-            console.log("l'erreur signup : ", error.response.data)
-        } else {
-            setErrorLogin(error.response?.data?.message || 'Erreur connexion')
-        }
-    } finally {
-        setLoading(false)
-    }
-  }
   return (
-    <div className={`${styles.authContainer} ${isSignUp ? styles.signupMode : ''}`}>
-      
+    <div
+      className={`${styles.authContainer} ${isSignUp ? styles.signupMode : ""}`}
+    >
       {/* PROMO PANEL - Slide de droite à gauche */}
       <div className={styles.promoPanel}>
         {!isSignUp ? (
           <>
             <h2>Bonjour !</h2>
-            <p>Entrez vos informations personnelles et commencez votre voyage avec nous</p>
-            <button 
+            <p>
+              Entrez vos informations personnelles et commencez votre voyage
+              avec nous
+            </p>
+            <button
               className={styles.btnPromo}
               onClick={() => handleTabSwitch(true)}
             >
@@ -111,8 +67,11 @@ export default function Login() {
         ) : (
           <>
             <h2>Bienvenue !</h2>
-            <p>Pour rester connecté avec nous, veuillez vous connecter avec vos informations personnelles</p>
-            <button 
+            <p>
+              Pour rester connecté avec nous, veuillez vous connecter avec vos
+              informations personnelles
+            </p>
+            <button
               className={styles.btnPromo}
               onClick={() => handleTabSwitch(false)}
             >
@@ -121,7 +80,6 @@ export default function Login() {
           </>
         )}
       </div>
-
 
       {/* SIGNIN FORM - Visible au départ, caché au clique */}
       <div className={styles.formPanel}>
@@ -132,29 +90,33 @@ export default function Login() {
           <button>in</button>
         </div>
         <p>ou utilisez votre compte email :</p>
-        <form onSubmit={handleSubmit}>
-        <input 
-        type="email"
-        name="email"
-        value={formData.email}
-        onChange={handleInputChange} 
-        placeholder="Email" />
-        <input 
-        type="password"
-        name="password"
-        value={formData.password}
-        onChange={handleInputChange}
-        placeholder="Mot de passe" />
-        <a href="#">Mot de passe oublié ?</a>
-        <button className={styles.btnSignIn} type="submit">SE CONNECTER</button>
+        <form onSubmit={(e) => loginForm.handleSubmit(e, login, register)}>
+        {loginForm.errors.email && (
+            <div className="errorMessage">{loginForm.errors.email}</div>
+        )}            
+          <input
+            type="email"
+            name="email"
+            value={loginForm.formData.email}
+            onChange={loginForm.handleInputChange}
+            placeholder="Email"
+          />
+        {loginForm.errors.password && (
+            <div className="errorMessage">{loginForm.errors.password}</div>
+        )}
+          <input
+            type="password"
+            name="password"
+            value={loginForm.formData.password}
+            onChange={loginForm.handleInputChange}
+            placeholder="Mot de passe"
+          />
+          <a href="#">Mot de passe oublié ?</a>
+          <button className={styles.btnSignIn} type="submit">
+            SE CONNECTER
+          </button>
         </form>
-            {errorLogin && (
-                <div className={styles.errorMessage}>
-                    {errorLogin}
-                </div>
-                )}        
       </div>
-
 
       {/* SIGNUP FORM - Caché au départ, visible au clique */}
       <div className={styles.formPanelAlt}>
@@ -165,44 +127,64 @@ export default function Login() {
           <button>in</button>
         </div>
         <p>ou utilisez votre email pour vous inscrire :</p>
-        <form onSubmit={handleSubmit}>
-        <input 
-        type="text" 
-        name="username"
-        value={formData.username}
-        onChange={handleInputChange}
-        placeholder="Pseudo" />
-        <input 
-        type="email" 
-        name="email" 
-        value={formData.email} 
-        onChange={handleInputChange} 
-        placeholder="Email" />
-        <input 
-        type="password" 
-        name="password" 
-        value={formData.password}
-        onChange={handleInputChange}
-        placeholder="Mot de passe" />
-        <input 
-        type="text" 
-        name="lastName"
-        value={formData.lastName}
-        onChange={handleInputChange} 
-        placeholder="nom" />
-        <input 
-        type="text" 
-        name="firstName"
-        value={formData.firstName}
-        onChange={handleInputChange} 
-        placeholder="prénom" />
-        <button className={styles.btnSignUp} type="submit">S'INSCRIRE</button>
-        </form>
-        {errorSignup && (
-            <div className={styles.errorMessage}>
-                {errorSignup}
-            </div>
+        <form onSubmit={(e) => signupForm.handleSubmit(e, login, register)}>
+            {signupForm.errors.username && (
+              <div className="errorMessage">{signupForm.errors.username}</div>
             )}
+          <input
+            type="text"
+            name="username"
+            value={signupForm.formData.username || ''}
+            onChange={signupForm.handleInputChange}
+            placeholder="Pseudo"
+          />
+            {signupForm.errors.email && (
+              <div className="errorMessage">{signupForm.errors.email}</div>
+            )}
+          <input
+            type="email"
+            name="email"
+            value={signupForm.formData.email}
+            onChange={signupForm.handleInputChange}
+            placeholder="Email"
+          />
+            {signupForm.errors.password && (
+              <div className="errorMessage">{signupForm.errors.password}</div>
+            )}
+          <input
+            type="password"
+            name="password"
+            value={signupForm.formData.password}
+            onChange={signupForm.handleInputChange}
+            placeholder="Mot de passe"
+          />
+            {signupForm.errors.lastName && (
+              <div className="errorMessage">{signupForm.errors.lastName}</div>
+            )}
+          <input
+            type="text"
+            name="lastName"
+            value={signupForm.formData.lastName || ''}
+            onChange={signupForm.handleInputChange}
+            placeholder="nom"
+          />
+            {signupForm.errors.firstName && (
+              <div className="errorMessage">{signupForm.errors.firstName}</div>
+            )}
+          <input
+            type="text"
+            name="firstName"
+            value={signupForm.formData.firstName || ''}
+            onChange={signupForm.handleInputChange}
+            placeholder="prénom"
+          />
+          {signupForm.errors.general && (
+                <div className="errorMessage">{signupForm.errors.general}</div>
+            )}
+          <button className={styles.btnSignUp} type="submit">
+            S'INSCRIRE
+          </button>
+        </form>
       </div>
     </div>
   );
